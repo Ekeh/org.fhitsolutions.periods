@@ -1,0 +1,36 @@
+<?xml version="1.0"?>
+<extension key="org.fhitsolutions.periods" type="module">
+  <file>periods</file>
+  <name>Periods</name>
+  <description>
+    Membership Periods provides facility for tracking the number of times membership renewal was carried out.
+    It also provides link to contributions if available
+  </description>
+  <license>AGPL-3.0</license>
+  <maintainer>
+    <author>Alajede Samson</author>
+    <email>ajesamson@yahoo.com</email>
+  </maintainer>
+  <urls>
+    <url desc="Main Extension Page">http://FIXME</url>
+    <url desc="Documentation">http://FIXME</url>
+    <url desc="Support">http://FIXME</url>
+    <url desc="Licensing">http://www.gnu.org/licenses/agpl-3.0.html</url>
+  </urls>
+  <releaseDate>2017-12-06</releaseDate>
+  <version>1.0</version>
+  <develStage>alpha</develStage>
+  <compatibility>
+    <ver>4.7</ver>
+  </compatibility>
+  <comments>
+    This extension provides membership renewal periods/terms tracking. 
+    Currently, when a membership is renewed in CiviCRM the “end date” field on the membership 
+    itself is extended by the length of the membership as defined in CiviCRM membership type configuration 
+    but no record of the actual length of any one period or term is recorded. As such it is not possible to 
+    see how many “terms” or “periods” of membership a contact may have had. 
+  </comments>
+  <civix>
+    <namespace>CRM/Periods</namespace>
+  </civix>
+</extension>
