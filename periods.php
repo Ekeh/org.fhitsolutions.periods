@@ -1,8 +1,81 @@
 <?php
 
 require_once 'periods.civix.php';
-use CRM_Periods_ExtensionUtil as E;
+use CRM_Periods_ExtensionUtil as E; 
 
+/**
+ *
+ */
+/**
+ * Implementation of hook_civicrm_post
+ *
+ * @param $op
+ *      Type of operation carried out
+ * @param $objectName
+ *      CiviCRM object carrying out operations
+ * @param $objectId
+ *      Id of the object
+ * @param $objectRef
+ *      Reference to object
+ */
+function periods_civicrm_post($op, $objectName, $objectId, &$objectRef) {
+    if ($objectName != "Membership" && $objectName != "MembershipPayment" || $op == "delete") {
+        return;
+    }
+
+    $params = [];
+    // Create/ Edit membership period if Membership object is called
+    if ($objectName == "Membership") {
+        $params = [
+            "start_date"        => $objectRef->start_date,
+            "end_date"          => $objectRef->end_date,
+            "membership_id"     => $objectRef->id,
+            "contact_id"        => $objectRef->contact_id,
+            "id"                => ($op == "create") ? : getPeriodId($objectRef->id)
+        ];
+    }
+    // Update membership period with contribution update if MembershipPayment object is called
+    if ($objectName == "MembershipPayment") {
+        $params = [
+            "id"                => getPeriodId($objectRef->membership_id),
+            "contribution_id"   => $objectRef->contribution_id
+        ];
+    }
+    CRM_Periods_BAO_Periods::create($params);
+}
+
+/**
+ * Implements hook_civicrm_apiWrappers().
+ */
+function Periods_civicrm_entityTypes(&$entityTypes)
+{
+    $entityTypes[] = array(
+        'name' => 'Periods',
+        'class' => 'CRM_Periods_DAO_Periods',
+        'table' => 'civicrm_membership_periods',
+    );
+}
+
+/**
+ * This functions help to retrieve the id of the most recent period for a contact membership
+ *
+ * @param $id
+ *      Id of the membership data related to the period
+ * @return mixed
+ */
+function getPeriodId($id) {
+    try {
+        $search = [
+            "membership_id" => $id,
+            "return" => ["id"],
+            "options" => ["sort" => "id DESC", "limit" => 1],
+        ];
+        $result = civicrm_api3('Periods', 'get', $search);
+        return $result["id"];
+    } catch (CiviCRM_API3_Exception $e) {
+        $error = $e->getMessage();
+    }
+}
 /**
  * Implements hook_civicrm_config().
  *
