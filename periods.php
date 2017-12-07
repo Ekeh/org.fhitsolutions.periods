@@ -4,44 +4,48 @@ require_once 'periods.civix.php';
 use CRM_Periods_ExtensionUtil as E; 
 
 /**
- *
- */
-/**
  * Implementation of hook_civicrm_post
  *
  * @param $op
- *      Type of operation carried out
  * @param $objectName
- *      CiviCRM object carrying out operations
  * @param $objectId
- *      Id of the object
  * @param $objectRef
- *      Reference to object
  */
 function periods_civicrm_post($op, $objectName, $objectId, &$objectRef) {
-    if ($objectName != "Membership" && $objectName != "MembershipPayment" || $op == "delete") {
-        return;
+    try {
+        if ($objectName != "Membership" && $objectName != "MembershipPayment" || $op == "delete") {
+            return;
+        }
+        $membershipId = ($objectName == "Membership") ? $objectId : $objectRef->membership_id;
+        $membership = getMembershipDetails($membershipId);
+        if ($membership && $membership["membership_type_id.duration_unit"] == "lifetime") {
+            return;
+        }
+
+        $params = [];
+        // Create/ Edit membership period if Membership object is called
+        if ($objectName == "Membership") {
+            $id = ($op == "create") ? null : getPeriodId($objectRef, $objectId, true);
+            $params = [
+                "start_date"        => $objectRef->start_date,
+                "end_date"          => $objectRef->end_date,
+                "membership_id"     => $objectRef->id,
+                "contact_id"        => $objectRef->contact_id,
+                "id"                => $id
+            ];
+        }
+        // Update membership period with contribution update if MembershipPayment object is called
+        if ($objectName == "MembershipPayment") {
+            $params = [
+                "id"                => getPeriodId($objectRef, $membershipId),
+                "contribution_id"   => $objectRef->contribution_id
+            ];
+        }
+        CRM_Periods_BAO_Periods::create($params);
+    } catch (Exception $e) {
+        $error = $e->getMessage();
     }
 
-    $params = [];
-    // Create/ Edit membership period if Membership object is called
-    if ($objectName == "Membership") {
-        $params = [
-            "start_date"        => $objectRef->start_date,
-            "end_date"          => $objectRef->end_date,
-            "membership_id"     => $objectRef->id,
-            "contact_id"        => $objectRef->contact_id,
-            "id"                => ($op == "create") ? : getPeriodId($objectRef->id)
-        ];
-    }
-    // Update membership period with contribution update if MembershipPayment object is called
-    if ($objectName == "MembershipPayment") {
-        $params = [
-            "id"                => getPeriodId($objectRef->membership_id),
-            "contribution_id"   => $objectRef->contribution_id
-        ];
-    }
-    CRM_Periods_BAO_Periods::create($params);
 }
 
 /**
@@ -59,23 +63,72 @@ function Periods_civicrm_entityTypes(&$entityTypes)
 /**
  * This functions help to retrieve the id of the most recent period for a contact membership
  *
+ * @param $objectRef
  * @param $id
- *      Id of the membership data related to the period
+ * @param bool $possibleRenewal
  * @return mixed
  */
-function getPeriodId($id) {
-    try {
-        $search = [
-            "membership_id" => $id,
-            "return" => ["id"],
-            "options" => ["sort" => "id DESC", "limit" => 1],
-        ];
-        $result = civicrm_api3('Periods', 'get', $search);
-        return $result["id"];
-    } catch (CiviCRM_API3_Exception $e) {
-        $error = $e->getMessage();
+function getPeriodId(&$objectRef, $id, $possibleRenewal = false) {
+    $period = civicrm_api3("Periods", "get", [
+        "membership_id" => $id,
+        "sequential" => 1,
+        "limit" => 1,
+        "sort" => "id DESC"
+    ]);
+    if ($possibleRenewal && confirmRenewal($objectRef, $id, $period)) {
+        $objectRef->start_date = $period["values"][0]["end_date"];
+        return;
     }
+
+    return $period["values"][0]["id"];
 }
+
+/**
+ * Confirm if renewal or new record should be created
+ * based on membership duration interval and unit
+ *
+ * @param $objectRef
+ * @param $membershipId
+ * @param $period
+ * @return bool
+ */
+function confirmRenewal($objectRef, $membershipId, $period) {
+    $membership = getMembershipDetails($membershipId);
+
+    if (count($period["values"]) == 0) {
+        return true;
+    }
+
+    // get the last period
+    $interval = $membership['membership_type_id.duration_interval'];
+    $interval .= " " . $membership['membership_type_id.duration_unit'];
+    $date = date_create($period["values"][0]["end_date"]);
+    $newEndDate = date_add($date, date_interval_create_from_date_string($interval));
+    $newEndDate = date_format($newEndDate, 'Y-m-d');
+    if ($objectRef->end_date == $newEndDate) {
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Retrieve membership details
+ *
+ * @param $membershipId
+ * @return array
+ */
+function getMembershipDetails($membershipId) {
+    $membership = civicrm_api3("Membership",'getsingle',array(
+        "id"        => $membershipId,
+        "return"    => [
+            "end_date",
+            "membership_type_id.duration_interval",
+            "membership_type_id.duration_unit"
+        ],
+    ));
+    return $membership;
+}
+
 /**
  * Implements hook_civicrm_config().
  *
