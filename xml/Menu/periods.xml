@@ -1,0 +1,9 @@
+<?xml version="1.0"?>
+<menu>
+  <item>
+    <path>civicrm/periods/view/periods</path>
+    <page_callback>CRM_Periods_Page_Periods</page_callback>
+    <title>Periods</title>
+    <access_arguments>access CiviCRM</access_arguments>
+  </item>
+</menu>
