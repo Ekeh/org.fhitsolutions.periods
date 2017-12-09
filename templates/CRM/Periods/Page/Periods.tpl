@@ -1,8 +1,5 @@
 <h3>Membership Periods</h3>
-
-{crmAPI var='result' entity='Periods' action='get' contact_id=$cid
-return="contribution_id.total_amount,start_date,end_date"}
-<table class=" dataTable">
+<table class="dataTable">
     <thead>
         <tr>
             <th>Start Date</th>
@@ -11,16 +8,29 @@ return="contribution_id.total_amount,start_date,end_date"}
         </tr>
     </thead>
     <tbody>
-        {foreach from=$result.values item=periods}
+        {foreach from=$periods item=period}
         <tr>
-            <td>{$periods.start_date|date_format}</td>
-            <td>{$periods.end_date|date_format}</td>
+            <td>{$period.start_date|date_format}</td>
+            <td>{$period.end_date|date_format}</td>
             <td>
-                {$periods.contribution_id.total_amount}
+                <a href="{crmURL p='civicrm/contact/view/contribution' q="&cid=`$cid`&reset=1&force=1"}">
+                    {$period.total}
+                </a>
             </td>
         </tr>
         {/foreach}
+
+
     </tbody>
 </table>
+
+
+{literal}
+<script type="text/javascript">
+    CRM.$(function($) {
+        $('.dataTable').dataTable();
+    });
+</script>
+{/literal}
 
 

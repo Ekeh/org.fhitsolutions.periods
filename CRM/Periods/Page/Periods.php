@@ -6,9 +6,24 @@ class CRM_Periods_Page_Periods extends CRM_Core_Page {
   public function run() {
     $cid = CRM_Utils_Request::retrieve("cid", "Positive", $this, FALSE,  0);
 
-    $this->assign('cid', $cid );
+    $results = civicrm_api3('Periods', 'get', array(
+      'sequential' => 1,
+      'return' => array("contribution_id.total_amount", "start_date", "end_date"),
+      'contribution_id.contact_id' => $cid,
+    ));
+    // adding extra key called total to avoid issues with smarty
+    // reading keys with dot - {$periods.contribution_id.total_amount}
+    // this seems catered for in version 3 of smarty - {$periods["contribution_id.total_amount"]}
+    foreach ($results['values'] as $key => $value) {
+        $results["values"][$key]["total"] = $value["contribution_id.total_amount"];
+    }
 
-    parent::run();
+    $this->assign('cid', $cid );
+    $this->assign('periods', $results["values"] );
+
+
+
+      parent::run();
   }
 
 }
