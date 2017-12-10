@@ -1,7 +1,7 @@
 <?php
 
 require_once 'periods.civix.php';
-use CRM_Periods_ExtensionUtil as E; 
+use CRM_Periods_ExtensionUtil as E;
 
 /**
  * Implementation of hook_civicrm_post
@@ -10,6 +10,7 @@ use CRM_Periods_ExtensionUtil as E;
  * @param $objectName
  * @param $objectId
  * @param $objectRef
+ * @throws Exception
  */
 function periods_civicrm_post($op, $objectName, $objectId, &$objectRef) {
     try {
@@ -25,27 +26,60 @@ function periods_civicrm_post($op, $objectName, $objectId, &$objectRef) {
         $params = [];
         // Create/ Edit membership period if Membership object is called
         if ($objectName == "Membership") {
-            $id = ($op == "create") ? null : getPeriodId($objectRef, $objectId, true);
-            $params = [
-                "start_date"        => $objectRef->start_date,
-                "end_date"          => $objectRef->end_date,
-                "membership_id"     => $objectRef->id,
-                "contact_id"        => $objectRef->contact_id,
-                "id"                => $id
-            ];
+            $params = processMembership($objectRef, $objectId, $op);
         }
         // Update membership period with contribution update if MembershipPayment object is called
-        if ($objectName == "MembershipPayment") {
-            $params = [
-                "id"                => getPeriodId($objectRef, $membershipId),
-                "contribution_id"   => $objectRef->contribution_id
-            ];
+        else if ($objectName == "MembershipPayment") {
+            $params = processMembershipPayment($objectRef, $membershipId);
         }
+
         CRM_Periods_BAO_Periods::create($params);
     } catch (Exception $e) {
-        $error = $e->getMessage();
+        throw new Exception($e->getMessage(), 400);
+    }
+}
+
+/**
+ * Manages creation, renewal or editing of membership period
+ * @param $objectRef
+ * @param $objectId
+ * @param $op
+ * @return array
+ * @throws Exception
+ */
+function processMembership($objectRef, $objectId, $op) {
+    $startDate=new DateTime($objectRef->start_date);
+    $endDate=new DateTime($objectRef->end_date);
+    $dateDifference = $startDate->diff($endDate);
+
+    if ($dateDifference->format('%R%a') < 0) {
+        throw new Exception(ts("End date must be the same or later than start date."));
+        return;
     }
 
+    $id = ($op == "create") ? null : getPeriodId($objectRef, $objectId, true);
+    $params = [
+        "start_date"        => $objectRef->start_date,
+        "end_date"          => $objectRef->end_date,
+        "membership_id"     => $objectRef->id,
+        "contact_id"        => $objectRef->contact_id,
+        "id"                => $id
+    ];
+    return $params;
+}
+
+/**
+ * Updates membership period with contribution id
+ * @param $objectRef
+ * @param $membershipId
+ * @return array
+ */
+function processMembershipPayment($objectRef, $membershipId) {
+    $params = [
+        "id"                => getPeriodId($objectRef, $membershipId),
+        "contribution_id"   => $objectRef->contribution_id
+    ];
+    return $params;
 }
 
 /**
@@ -93,6 +127,7 @@ function getPeriodId(&$objectRef, $id, $possibleRenewal = false) {
  * @return bool
  */
 function confirmRenewal($objectRef, $membershipId, $period) {
+    var_dump("whas here");
     $membership = getMembershipDetails($membershipId);
 
     if (count($period["values"]) == 0) {
@@ -105,6 +140,7 @@ function confirmRenewal($objectRef, $membershipId, $period) {
     $date = date_create($period["values"][0]["end_date"]);
     $newEndDate = date_add($date, date_interval_create_from_date_string($interval));
     $newEndDate = date_format($newEndDate, 'Y-m-d');
+    var_dump("Checking", $objectRef->start_date, $objectRef->end_date, $newEndDate);
     if ($objectRef->end_date == $newEndDate) {
         return true;
     }

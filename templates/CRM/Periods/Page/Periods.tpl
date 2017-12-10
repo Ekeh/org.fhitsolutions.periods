@@ -13,9 +13,13 @@
             <td>{$period.start_date|date_format}</td>
             <td>{$period.end_date|date_format}</td>
             <td>
-                <a href="{crmURL p='civicrm/contact/view/contribution' q="&cid=`$cid`&reset=1&force=1"}">
-                    {$period.total}
-                </a>
+                {if $period.total}
+                    <a href="{crmURL p='civicrm/contact/view/contribution' q="&cid=`$cid`&reset=1&force=1"}">
+                        {$period.total}
+                    </a>
+                {else}
+                    Nill
+                {/if}
             </td>
         </tr>
         {/foreach}
