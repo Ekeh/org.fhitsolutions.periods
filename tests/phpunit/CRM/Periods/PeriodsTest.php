@@ -23,11 +23,17 @@ use Civi\Test\TransactionalInterface;
 class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements HeadlessInterface, HookInterface, TransactionalInterface
 {
 
+    const DURATION_INTERVAL = 2;
+    const DURATION_UNIT = "year";
+
     private $contact;
     private $domain;
     private $membershipType;
+    private $membershipTypeLifetime;
 
     /**
+     * Initialize the domain
+     *
      * @param mixed $domain
      */
     public function setDomain($domain)
@@ -36,11 +42,18 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
     }
 
     /**
+     * Initialize the member type members
      * @param mixed $membershipType
+     * @param string $name
+     *      Used to determine lifetime membership type
      */
-    public function setMembershipType($membershipType)
+    public function setMembershipType($membershipType, $name = "")
     {
-        $this->membershipType = $membershipType;
+        if (!$name) {
+            $this->membershipType = $membershipType;
+        } else {
+            $this->membershipTypeLifetime = $membershipType;
+        }
     }
 
     public function setUpHeadless()
@@ -54,6 +67,7 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
 
     /**
      * Generate a new contact
+     *
      * @return array
      */
     private static function setupContact()
@@ -90,26 +104,28 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
 
     /**
      * Create membership type base on domain if no record exist
+     *
+     * @param string $name
      */
-    private function setupMembershipType()
+    private function setupMembershipType($name = "")
     {
         $membershipType = civicrm_api3('MembershipType', 'get', [
             'sequential' => 1,
             'options' => ['limit' => 1]
         ]);
-        if ($membershipType["count"] == 0) {
-            $newMembershipType = civicrm_api3('MembershipType', 'create', array(
+        if ($membershipType["count"] == 0 || $name) {
+            $newMembershipType = civicrm_api3('MembershipType', 'create', [
                 'sequential' => 1,
                 'domain_id' => $this->domain["values"][0]["id"],
-                'member_of_contact_id' => 12,
+                'member_of_contact_id' => $this->contact["values"][0]["id"],
                 'financial_type_id' => "Donation",
-                'duration_unit' => "year",
-                'duration_interval' => 2,
+                'duration_unit' => ($name) ? $name : self::DURATION_UNIT,
+                'duration_interval' => self::DURATION_INTERVAL ,
                 'period_type' => "rolling",
-                'name' => "General",
+                'name' => ($name) ? $name : "General",
                 'description' => "Regular annual membership.",
-            ));
-            $this->setMembershipType($newMembershipType);
+            ]);
+            $this->setMembershipType($newMembershipType, $name);
         } else {
             $this->setMembershipType($membershipType);
         }
@@ -118,15 +134,17 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
     /**
      * Creates new membership record
      *
+     * @param int $membershipTypeId
+     *      id of membership type used to cater for lifetime membership
      * @param array $data
      *      record to be used for overriding default if provided
      * @return array
      */
-    private function createMembership($data = [])
+    private function createMembership($membershipTypeId, $data = [])
     {
         $memberData = [
             'sequential' => 1,
-            'membership_type_id' => $this->membershipType['values'][0]["id"],
+            'membership_type_id' => $membershipTypeId,
             'contact_id' => $this->contact["values"][0]["id"]
         ];
 
@@ -137,17 +155,21 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
 
     /**
      * Retrieve most recent Membership Period
+     *
      * @param $contactId
      *      Contact for which membership period is to be retrieved
+     * @param array $data
+     *      Optional parameters for filtering membership period details
      * @return array
      */
-    private static function getLastMembershipPeriods($contactId)
+    private static function getLastMembershipPeriods($contactId, $data = [])
     {
         $periodsData = [
             'sequential' => 1,
             'contact_id' => $contactId,
             'options' => ['limit' => 1, 'sort' => "id DESC"],
         ];
+        $periodsData = array_merge($periodsData, $data);
         $periods = civicrm_api3('Periods', 'get', $periodsData);
         return $periods;
     }
@@ -189,7 +211,7 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
     {
         // Given that contact already exist
         // When i create a new membership record without specifying start and end date
-        $newMembership = $this->createMembership();
+        $newMembership = $this->createMembership($this->membershipType['values'][0]["id"]);
 
         // Then membership period should be created successfully with membership start and end date
         $expectedData = [
@@ -224,7 +246,13 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         // Given that contact already exist
         // When i create a new membership record by specifying end_date that is less than start_date
         try {
-            $this->createMembership(["start_date" => "2017-01-01", "end_date" => "2014-01-01"]);
+            $this->createMembership(
+                $this->membershipType['values'][0]["id"],
+                [
+                    "start_date" => "2017-01-01",
+                    "end_date" => "2014-01-01"
+                ]
+            );
         } catch (Exception $e) {
             // Then an exception should be raised and the process terminated
             $this->assertEquals($e->getMessage(), "End date must be the same or later than start date.");
@@ -233,7 +261,7 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
 
     public function testMembershipRenewal() {
         // Given that membership record was previously created
-        $oldMembership = $this->createMembership();
+        $oldMembership = $this->createMembership($this->membershipType['values'][0]["id"]);
         $oldPeriod = $this->getLastMembershipPeriods($this->contact["values"][0]["id"]);
         // When new membership creation is requested with end date that equal next interval
         $nextDate = $this->getDateInterval(
@@ -243,11 +271,14 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         );
         $nextDate = date_format($nextDate, 'Y-m-d');
 
-        $this->createMembership([
-            "id" => $oldMembership["values"][0]["id"],
-            "start_date" => $oldMembership["values"][0]["start_date"],
-            "end_date" => $nextDate,
-        ]);
+        $this->createMembership(
+            $this->membershipType['values'][0]["id"],
+            [
+                "id" => $oldMembership["values"][0]["id"],
+                "start_date" => $oldMembership["values"][0]["start_date"],
+                "end_date" => $nextDate,
+            ]
+        );
 
         $newPeriod = $this->getLastMembershipPeriods($this->contact["values"][0]["id"]);
 
@@ -262,7 +293,7 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
      */
     public function testPeriodsEditing() {
         // Given that membership record was previously created
-        $oldMembership = $this->createMembership();
+        $oldMembership = $this->createMembership($this->membershipType['values'][0]["id"]);
 
 
         // When i changed the start or end date of contact membership
@@ -274,16 +305,31 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
             $this->getDateInterval("month", 3, $oldMembership["values"][0]["end_date"]),
             'Y-m-d'
         );
-        $this->createMembership([
-            "id" => $oldMembership["values"][0]["id"],
-            "start_date" => $newStartDate,
-            "end_date" => $newEndDate
-        ]);
+        $this->createMembership(
+            $this->membershipType['values'][0]["id"],
+            [
+                "id" => $oldMembership["values"][0]["id"],
+                "start_date" => $newStartDate,
+                "end_date" => $newEndDate
+            ]
+        );
         $newPeriod = $this->getLastMembershipPeriods($this->contact["values"][0]["id"]);
 
         // Then the last period should have been updated to the new
         $this->assertEquals($newStartDate, $newPeriod["values"][0]["start_date"]);
         $this->assertEquals($newEndDate, $newPeriod["values"][0]["end_date"]);
+    }
+
+    public function testLifetimeMembership() {
+        $this->setupMembershipType("Lifetime");
+        $membership = $this->createMembership($this->membershipTypeLifetime['values'][0]["id"]);
+
+        $period = $this->getLastMembershipPeriods(
+            $this->contact["values"][0]["id"], [
+                "membership_id" => $membership["values"][0]["id"]
+            ]
+        );
+        $this->assertEquals($period["count"], 0);
     }
 
 }
