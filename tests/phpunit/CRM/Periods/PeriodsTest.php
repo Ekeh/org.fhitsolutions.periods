@@ -22,14 +22,16 @@ use Civi\Test\TransactionalInterface;
  */
 class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements HeadlessInterface, HookInterface, TransactionalInterface
 {
-
     const DURATION_INTERVAL = 2;
     const DURATION_UNIT = "year";
+    const DEFAULT_FEE = 0.00;
+    const MINIMUM_FEE = 1200.00;
 
     private $contact;
     private $domain;
     private $membershipType;
     private $membershipTypeLifetime;
+    private $contribution;
 
     /**
      * Initialize the domain
@@ -103,6 +105,14 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
     }
 
     /**
+     * @param mixed $contribution
+     */
+    public function setContribution($contribution)
+    {
+        $this->contribution = $contribution;
+    }
+
+    /**
      * Create membership type base on domain if no record exist
      *
      * @param string $name
@@ -119,6 +129,7 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
                 'domain_id' => $this->domain["values"][0]["id"],
                 'member_of_contact_id' => $this->contact["values"][0]["id"],
                 'financial_type_id' => "Donation",
+                'minimum_fee' => ($name) ? self::DEFAULT_FEE : self::MINIMUM_FEE,
                 'duration_unit' => ($name) ? $name : self::DURATION_UNIT,
                 'duration_interval' => self::DURATION_INTERVAL ,
                 'period_type' => "rolling",
@@ -174,6 +185,26 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         return $periods;
     }
 
+    private function setupContribution() {
+        $contribution = civicrm_api3('Contribution', 'create', array(
+            'sequential' => 1,
+            'financial_type_id' => "Donation",
+            'total_amount' => self::MINIMUM_FEE,
+            'contact_id' => $this->contact["values"][0]["id"],
+        ));
+
+        $this->setContribution($contribution);
+    }
+
+    private function createPayment($membershipId) {
+        $payment = civicrm_api3('MembershipPayment', 'create', array(
+            'sequential' => 1,
+            'membership_id' => $membershipId,
+            'contribution_id' => $this->contribution["values"][0]["id"],
+        ));
+        return $payment;
+    }
+
     /**
      * Generate required fixtures for carrying out test
      */
@@ -182,6 +213,7 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         $this->contact = self::setupContact();
         $this->setupDomain();
         $this->setupMembershipType();
+
         parent::setUp();
     }
 
@@ -259,6 +291,9 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         }
     }
 
+    /**
+     * Test membership renewal process with new period creation
+     */
     public function testMembershipRenewal() {
         // Given that membership record was previously created
         $oldMembership = $this->createMembership($this->membershipType['values'][0]["id"]);
@@ -320,8 +355,13 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         $this->assertEquals($newEndDate, $newPeriod["values"][0]["end_date"]);
     }
 
+    /**
+     * Lifetime membership test integration
+     */
     public function testLifetimeMembership() {
+        // Given that membership type lifetime already exist
         $this->setupMembershipType("Lifetime");
+        // When lifetime membership type is created for contact
         $membership = $this->createMembership($this->membershipTypeLifetime['values'][0]["id"]);
 
         $period = $this->getLastMembershipPeriods(
@@ -329,7 +369,30 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
                 "membership_id" => $membership["values"][0]["id"]
             ]
         );
+        // Then no membership period should be created for member
         $this->assertEquals($period["count"], 0);
     }
 
+    /**
+     * Member period contribution test
+     */
+    public function testMembershipPeriodContribution() {
+        // Given that membership and contribution exist
+        $this->setupContribution();
+        $membership = $this->createMembership($this->membershipType["values"][0]["id"]);
+        // When contribution was made for the membership data
+        $membershipPayment =  $this->createPayment($membership["values"][0]["id"]);
+        $periods = $this->getLastMembershipPeriods(
+            $this->contact["values"][0]["id"],
+            [
+                "membership_id" => $membership["values"][0]["id"]
+            ]
+        );
+
+        // Then period should indicate link to contribution
+        $this->assertEquals(
+            $membershipPayment["values"][0]["contribution_id"],
+            $periods["values"][0]["contribution_id"]
+        );
+    }
 }
