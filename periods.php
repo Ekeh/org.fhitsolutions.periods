@@ -127,7 +127,6 @@ function getPeriodId(&$objectRef, $id, $possibleRenewal = false) {
  * @return bool
  */
 function confirmRenewal($objectRef, $membershipId, $period) {
-    var_dump("whas here");
     $membership = getMembershipDetails($membershipId);
 
     if (count($period["values"]) == 0) {
@@ -140,7 +139,6 @@ function confirmRenewal($objectRef, $membershipId, $period) {
     $date = date_create($period["values"][0]["end_date"]);
     $newEndDate = date_add($date, date_interval_create_from_date_string($interval));
     $newEndDate = date_format($newEndDate, 'Y-m-d');
-    var_dump("Checking", $objectRef->start_date, $objectRef->end_date, $newEndDate);
     if ($objectRef->end_date == $newEndDate) {
         return true;
     }

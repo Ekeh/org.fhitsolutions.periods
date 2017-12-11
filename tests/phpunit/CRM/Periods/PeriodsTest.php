@@ -257,9 +257,33 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         $this->assertEquals($nextDate, $newPeriod["values"][0]["end_date"]);
     }
 
-   /* public function testPeriodsEditing() {
-        $data = "";
-        $this->assertEquals([], $data);
-    }*/
+    /**
+     * Member period editing functionality test
+     */
+    public function testPeriodsEditing() {
+        // Given that membership record was previously created
+        $oldMembership = $this->createMembership();
+
+
+        // When i changed the start or end date of contact membership
+        $newStartDate = date_format(
+            $this->getDateInterval("month", 3, $oldMembership["values"][0]["start_date"]),
+            'Y-m-d'
+        );
+        $newEndDate = date_format(
+            $this->getDateInterval("month", 3, $oldMembership["values"][0]["end_date"]),
+            'Y-m-d'
+        );
+        $this->createMembership([
+            "id" => $oldMembership["values"][0]["id"],
+            "start_date" => $newStartDate,
+            "end_date" => $newEndDate
+        ]);
+        $newPeriod = $this->getLastMembershipPeriods($this->contact["values"][0]["id"]);
+
+        // Then the last period should have been updated to the new
+        $this->assertEquals($newStartDate, $newPeriod["values"][0]["start_date"]);
+        $this->assertEquals($newEndDate, $newPeriod["values"][0]["end_date"]);
+    }
 
 }
