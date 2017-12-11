@@ -26,7 +26,6 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
     private $contact;
     private $domain;
     private $membershipType;
-    private $membership;
 
     /**
      * @param mixed $domain
@@ -68,6 +67,9 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         return $contact;
     }
 
+    /**
+     * Create new domain if none exist on the data table
+     */
     private function setupDomain()
     {
         $domain = civicrm_api3('Domain', 'get', [
@@ -86,6 +88,9 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         }
     }
 
+    /**
+     * Create membership type base on domain if no record exist
+     */
     private function setupMembershipType()
     {
         $membershipType = civicrm_api3('MembershipType', 'get', [
@@ -147,6 +152,9 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         return $periods;
     }
 
+    /**
+     * Generate required fixtures for carrying out test
+     */
     public function setUp()
     {
         $this->contact = self::setupContact();
@@ -173,6 +181,7 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         $newEndDate = date_add($date, date_interval_create_from_date_string($interval));
         return $newEndDate;
     }
+
     /**
      * Period Creation test implementation
      */
@@ -222,6 +231,35 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
         }
     }
 
+    public function testMembershipRenewal() {
+        // Given that membership record was previously created
+        $oldMembership = $this->createMembership();
+        $oldPeriod = $this->getLastMembershipPeriods($this->contact["values"][0]["id"]);
+        // When new membership creation is requested with end date that equal next interval
+        $nextDate = $this->getDateInterval(
+            $this->membershipType["values"][0]["duration_unit"],
+            $this->membershipType["values"][0]["duration_interval"],
+            $oldMembership["values"][0]["end_date"]
+        );
+        $nextDate = date_format($nextDate, 'Y-m-d');
 
+        $this->createMembership([
+            "id" => $oldMembership["values"][0]["id"],
+            "start_date" => $oldMembership["values"][0]["start_date"],
+            "end_date" => $nextDate,
+        ]);
+
+        $newPeriod = $this->getLastMembershipPeriods($this->contact["values"][0]["id"]);
+
+        // Then the most recent membership period for contact should have new record with
+        // start_date as oldMember's end_date and end_date as the new interval
+        $this->assertEquals($oldPeriod["values"][0]["end_date"], $newPeriod["values"][0]["start_date"]);
+        $this->assertEquals($nextDate, $newPeriod["values"][0]["end_date"]);
+    }
+
+   /* public function testPeriodsEditing() {
+        $data = "";
+        $this->assertEquals([], $data);
+    }*/
 
 }
