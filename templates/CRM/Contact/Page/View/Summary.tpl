@@ -106,11 +106,20 @@
                         </a>
                     </li>
                 {/foreach}
-                <li id="tab_membership_profile" class="crm-tab-button ui-corner-all crm-count-20">
-                    <a href="{crmURL p='civicrm/periods/view/periods' q="&cid=`$contactId`&reset=1"}" title="Membership periods">
-                        Membership Periods
-                    </a>
-                </li>
+                {crmAPI var='counter' entity='Periods' action='getcount' contact_id=$contactId}
+                {if $counter}
+                    <li id="tab_membership_profile" class="crm-tab-button ui-corner-all crm-count-{$count}">
+                        <a href="{crmURL p='civicrm/periods/view/periods' q="&cid=`$contactId`&reset=1"}" title="Membership periods">
+                            Membership Periods <em>{$counter}</em>
+                        </a>
+                    </li>
+                {else}
+                    <li id="tab_membership_profile" class="crm-tab-button ui-corner-all crm-count-0">
+                        <a href="{crmURL p='civicrm/periods/view/periods' q="&cid=`$contactId`&reset=1"}" title="Membership periods">
+                            Membership Periods <em>0</em>
+                        </a>
+                    </li>
+                {/if}
             </ul>
 
             <div id="contact-summary" class="ui-tabs-panel ui-widget-content ui-corner-bottom">

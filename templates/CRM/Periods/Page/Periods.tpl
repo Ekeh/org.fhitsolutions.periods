@@ -15,7 +15,7 @@
             <td>
                 {if $period.total}
                     <a href="{crmURL p='civicrm/contact/view/contribution' q="&cid=`$cid`&reset=1&force=1"}">
-                        {$period.currency} {$period.total}
+                        {$period.currency}
                     </a>
                 {else}
                     Nill
@@ -32,7 +32,9 @@
 {literal}
 <script type="text/javascript">
     CRM.$(function($) {
-        $('.dataTable').dataTable();
+        $('.dataTable').dataTable({
+            "order": [[ 0, "desc" ]]
+        } );
     });
 </script>
 {/literal}
