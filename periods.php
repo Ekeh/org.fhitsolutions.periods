@@ -110,7 +110,8 @@ function getPeriodId(&$objectRef, $id, $possibleRenewal = false) {
         "sort" => "id DESC"
     ]);
     if ($possibleRenewal && confirmRenewal($objectRef, $id, $period)) {
-        $objectRef->start_date = $period["values"][0]["end_date"];
+        $newStartDate = getDateInterval("day", "1", $period["values"][0]["end_date"]);
+        $objectRef->start_date =  date_format($newStartDate, "Y-m-d");
         return;
     }
 
@@ -134,15 +135,31 @@ function confirmRenewal($objectRef, $membershipId, $period) {
     }
 
     // get the last period
-    $interval = $membership['membership_type_id.duration_interval'];
-    $interval .= " " . $membership['membership_type_id.duration_unit'];
-    $date = date_create($period["values"][0]["end_date"]);
-    $newEndDate = date_add($date, date_interval_create_from_date_string($interval));
+    $newEndDate = getDateInterval(
+        $membership['membership_type_id.duration_unit'],
+        $membership['membership_type_id.duration_interval'],
+        $period["values"][0]["end_date"]
+    );
     $newEndDate = date_format($newEndDate, 'Y-m-d');
     if ($objectRef->end_date == $newEndDate) {
         return true;
     }
     return false;
+}
+
+/**
+ * Calculate the next date based on interval, unit and date
+ *
+ * @param $unit
+ * @param $interval
+ * @param $startDate
+ * @return DateTime|false
+ */
+function getDateInterval($unit, $interval, $startDate) {
+    $interval = $interval . " " . $unit;
+    $date = date_create($startDate);
+    $newEndDate = date_add($date, date_interval_create_from_date_string($interval));
+    return $newEndDate;
 }
 
 /**

@@ -305,6 +305,10 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
             $oldMembership["values"][0]["end_date"]
         );
         $nextDate = date_format($nextDate, 'Y-m-d');
+        $nextStartDate = date_format(
+            $this->getDateInterval("day", 1, $oldPeriod["values"][0]["end_date"]),
+            'Y-m-d'
+        );
 
         $this->createMembership(
             $this->membershipType['values'][0]["id"],
@@ -319,7 +323,7 @@ class CRM_Periods_PeriodsTest extends \PHPUnit_Framework_TestCase implements Hea
 
         // Then the most recent membership period for contact should have new record with
         // start_date as oldMember's end_date and end_date as the new interval
-        $this->assertEquals($oldPeriod["values"][0]["end_date"], $newPeriod["values"][0]["start_date"]);
+        $this->assertEquals($nextStartDate, $newPeriod["values"][0]["start_date"]);
         $this->assertEquals($nextDate, $newPeriod["values"][0]["end_date"]);
     }
 
