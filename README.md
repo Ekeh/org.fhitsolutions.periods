@@ -47,7 +47,8 @@ updated.
 
 4. Click on the `Membership Periods` tab to view history of times/periods and their
 contributions (if applicable).
-
+    > Note that page refresh might be required to see changes, especially after membership
+    creation
 5. To view membership contribution breakdown, click on any of the contribution link
 
 ## API

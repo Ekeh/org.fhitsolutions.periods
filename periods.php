@@ -1,6 +1,8 @@
 <?php
 
 require_once 'periods.civix.php';
+require_once 'PeriodUtil.php';
+
 use CRM_Periods_ExtensionUtil as E;
 
 /**
@@ -18,7 +20,7 @@ function periods_civicrm_post($op, $objectName, $objectId, &$objectRef) {
             return;
         }
         $membershipId = ($objectName == "Membership") ? $objectId : $objectRef->membership_id;
-        $membership = getMembershipDetails($membershipId);
+        $membership = PeriodUtil::getMembershipDetails($membershipId);
         if ($membership && $membership["membership_type_id.duration_unit"] == "lifetime") {
             return;
         }
@@ -57,7 +59,7 @@ function processMembership($objectRef, $objectId, $op) {
         return;
     }
 
-    $id = ($op == "create") ? null : getPeriodId($objectRef, $objectId, true);
+    $id = ($op == "create") ? null : PeriodUtil::getPeriodId($objectRef, $objectId, true);
     $params = [
         "start_date"        => $objectRef->start_date,
         "end_date"          => $objectRef->end_date,
@@ -76,7 +78,7 @@ function processMembership($objectRef, $objectId, $op) {
  */
 function processMembershipPayment($objectRef, $membershipId) {
     $params = [
-        "id"                => getPeriodId($objectRef, $membershipId),
+        "id"                => PeriodUtil::getPeriodId($objectRef, $membershipId),
         "contribution_id"   => $objectRef->contribution_id
     ];
     return $params;
@@ -92,92 +94,6 @@ function Periods_civicrm_entityTypes(&$entityTypes)
         'class' => 'CRM_Periods_DAO_Periods',
         'table' => 'civicrm_membership_periods',
     );
-}
-
-/**
- * This functions help to retrieve the id of the most recent period for a contact membership
- *
- * @param $objectRef
- * @param $id
- * @param bool $possibleRenewal
- * @return mixed
- */
-function getPeriodId(&$objectRef, $id, $possibleRenewal = false) {
-    $period = civicrm_api3("Periods", "get", [
-        "membership_id" => $id,
-        "sequential" => 1,
-        "limit" => 1,
-        "sort" => "id DESC"
-    ]);
-    if ($possibleRenewal && confirmRenewal($objectRef, $id, $period)) {
-        $newStartDate = getDateInterval("day", "1", $period["values"][0]["end_date"]);
-        $objectRef->start_date =  date_format($newStartDate, "Y-m-d");
-        return;
-    }
-
-    return $period["values"][0]["id"];
-}
-
-/**
- * Confirm if renewal or new record should be created
- * based on membership duration interval and unit
- *
- * @param $objectRef
- * @param $membershipId
- * @param $period
- * @return bool
- */
-function confirmRenewal($objectRef, $membershipId, $period) {
-    $membership = getMembershipDetails($membershipId);
-
-    if (count($period["values"]) == 0) {
-        return true;
-    }
-
-    // get the last period
-    $newEndDate = getDateInterval(
-        $membership['membership_type_id.duration_unit'],
-        $membership['membership_type_id.duration_interval'],
-        $period["values"][0]["end_date"]
-    );
-    $newEndDate = date_format($newEndDate, 'Y-m-d');
-    if ($objectRef->end_date == $newEndDate) {
-        return true;
-    }
-    return false;
-}
-
-/**
- * Calculate the next date based on interval, unit and date
- *
- * @param $unit
- * @param $interval
- * @param $startDate
- * @return DateTime|false
- */
-function getDateInterval($unit, $interval, $startDate) {
-    $interval = $interval . " " . $unit;
-    $date = date_create($startDate);
-    $newEndDate = date_add($date, date_interval_create_from_date_string($interval));
-    return $newEndDate;
-}
-
-/**
- * Retrieve membership details
- *
- * @param $membershipId
- * @return array
- */
-function getMembershipDetails($membershipId) {
-    $membership = civicrm_api3("Membership",'getsingle',array(
-        "id"        => $membershipId,
-        "return"    => [
-            "end_date",
-            "membership_type_id.duration_interval",
-            "membership_type_id.duration_unit"
-        ],
-    ));
-    return $membership;
 }
 
 /**

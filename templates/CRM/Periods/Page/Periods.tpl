@@ -15,7 +15,7 @@
             <td>
                 {if $period.total}
                     <a href="{crmURL p='civicrm/contact/view/contribution' q="&cid=`$cid`&reset=1&force=1"}">
-                        {$period.currency}
+                        {$period.currency} {$period.total}
                     </a>
                 {else}
                     Nill
